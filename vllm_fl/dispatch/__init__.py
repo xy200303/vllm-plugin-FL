@@ -78,6 +78,8 @@ Configuration File (YAML):
 
 import os
 
+import torch
+
 from .types import OpImpl, BackendImplKind, BackendPriority, match_token
 from .registry import OpRegistry, OpRegistrySnapshot
 from .policy import (
