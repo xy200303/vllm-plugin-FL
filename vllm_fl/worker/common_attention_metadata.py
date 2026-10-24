@@ -49,6 +49,8 @@ def common_attention_metadata_enabled() -> bool:
 
 def supports_accelerator_graph() -> bool:
     """Return whether the active platform exposes the plugin graph API."""
+    if os.environ.get("VLLM_FL_COMMON_ATTENTION_METADATA_NO_REPLAY") == "1":
+        return False
     return callable(getattr(Graph, "graph", None)) and callable(
         getattr(current_platform.torch_device_fn, "graph", None)
     )
