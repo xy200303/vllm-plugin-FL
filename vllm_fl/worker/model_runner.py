@@ -5337,7 +5337,8 @@ class ModelRunnerFL(
         )
         # All model modules are loaded, while compilation and graph capture
         # have not started. Resolve CachedOps outside either graph.
-        prewarm_cached_ops()
+        if os.environ.get("VLLM_FL_PREWARM_CACHED_OPS", "1") == "1":
+            logger.info_once("fl prewarm: resolved %d CachedOps", prewarm_cached_ops())
 
         if not load_dummy_weights:
             prepare_communication_buffer_for_model(self.model)
