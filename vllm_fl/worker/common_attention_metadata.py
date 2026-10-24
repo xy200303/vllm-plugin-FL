@@ -55,9 +55,16 @@ def supports_accelerator_graph() -> bool:
 
 
 @triton.jit
-def _load_ptr(ptr_to_ptr, elem_dtype):
+def _load_ptr_i32(ptr_to_ptr):
     ptr = tl.load(ptr_to_ptr)
-    ptr = tl.cast(ptr, tl.pointer_type(elem_dtype))
+    ptr = tl.cast(ptr, tl.pointer_type(tl.int32))
+    return tl.multiple_of(ptr, 16)
+
+
+@triton.jit
+def _load_ptr_i64(ptr_to_ptr):
+    ptr = tl.load(ptr_to_ptr)
+    ptr = tl.cast(ptr, tl.pointer_type(tl.int64))
     return tl.multiple_of(ptr, 16)
 
 
@@ -82,10 +89,10 @@ def _compute_slot_mapping_graph_kernel(
 ):
     group_idx = tl.program_id(0)
     req_idx = tl.program_id(1)
-    block_table_ptr = _load_ptr(block_table_ptrs + group_idx, tl.int32)
+    block_table_ptr = _load_ptr_i32(block_table_ptrs + group_idx)
     block_table_stride = tl.load(block_table_strides + group_idx)
     block_size = tl.load(block_sizes + group_idx)
-    slot_mapping_ptr = _load_ptr(slot_mapping_ptrs + group_idx, tl.int64)
+    slot_mapping_ptr = _load_ptr_i64(slot_mapping_ptrs + group_idx)
 
     if req_idx == tl.num_programs(1) - 1:
         actual_num_tokens = tl.load(query_start_loc_ptr + req_idx).to(tl.int64)
