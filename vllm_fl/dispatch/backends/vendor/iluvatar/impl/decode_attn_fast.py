@@ -33,6 +33,7 @@ i.e. before graph capture, so no allocation happens inside a graph.
 A/B switch:
   VLLM_FL_DISABLE_DECODE_FAST=1        -> stock unified attention
   VLLM_FL_DECODE_FAST_SEGMENTS/_BLOCK/_WARPS/_STAGES -> kernel shape knobs
+  VLLM_FL_DECODE_FAST_SPLIT_TAIL=1     -> experimental full-page/tail split
   VLLM_FL_DECODE_FAST_DEBUG=1          -> log eligibility once per reason
   VLLM_FL_DECODE_FAST_SKIP=1           -> diagnostic: skip the launch (the
                                           output is garbage; only for step-time
@@ -56,6 +57,7 @@ _NSEG = int(os.environ.get("VLLM_FL_DECODE_FAST_SEGMENTS", "32"))
 _BLOCK_N = int(os.environ.get("VLLM_FL_DECODE_FAST_BLOCK", "16"))
 _NUM_WARPS = int(os.environ.get("VLLM_FL_DECODE_FAST_WARPS", "1"))
 _NUM_STAGES = int(os.environ.get("VLLM_FL_DECODE_FAST_STAGES", "1"))
+_SPLIT_TAIL = os.environ.get("VLLM_FL_DECODE_FAST_SPLIT_TAIL", "0") == "1"
 
 _HEAD_SIZE = 128
 _NUM_Q_HEADS = 16
@@ -108,12 +110,13 @@ def _get_slab(dev):
 
 def decode_attention(q, k, v, out, block_table, seq_lens, scale, slab,
                      nseg=_NSEG, block_n=_BLOCK_N, num_warps=_NUM_WARPS,
-                     num_stages=_NUM_STAGES):
+                     num_stages=_NUM_STAGES, split_tail=False):
     """Thin wrapper: the operator itself lives in FlagGems."""
     return _fg_paged_decode_attention(
         q, k, v, out, block_table, seq_lens, scale,
         num_segments=nseg, block_n=block_n, num_warps=num_warps,
         num_stages=num_stages, seg_buffers=slab,
+        **({"split_tail": True} if split_tail else {}),
     )
 
 
@@ -172,7 +175,8 @@ def _fast_forward(impl, query, kv_cache, md, output):
         return output
     key_cache, value_cache = kv_cache.unbind(1)
     decode_attention(query[:n], key_cache, value_cache, output[:n],
-                     md.block_table, md.seq_lens, impl.scale, slab)
+                     md.block_table, md.seq_lens, impl.scale, slab,
+                     split_tail=_SPLIT_TAIL)
     return output
 
 
@@ -245,5 +249,5 @@ def apply() -> None:
     except Exception as exc:  # pragma: no cover
         logger.warning("decode_attn_fast: slab alloc failed (%s)", exc)
     logger.info("fl iluvatar: decode-attention fast kernel enabled "
-                "(segments=%d block=%d warps=%d stages=%d bmax=%d)",
-                _NSEG, _BLOCK_N, _NUM_WARPS, _NUM_STAGES, _BMAX)
+                "(segments=%d block=%d warps=%d stages=%d bmax=%d split_tail=%d)",
+                _NSEG, _BLOCK_N, _NUM_WARPS, _NUM_STAGES, _BMAX, _SPLIT_TAIL)
