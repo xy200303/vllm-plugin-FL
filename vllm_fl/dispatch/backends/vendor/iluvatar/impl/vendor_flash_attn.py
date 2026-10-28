@@ -124,13 +124,19 @@ def _build_split(m, cu_l, seq_l):
     dev = m.query_start_loc.device
     if dec_idx:
         n = len(dec_idx)
-        idx_t = torch.tensor(dec_idx, dtype=torch.int64).to(dev, non_blocking=True)
-        dec_rows = torch.tensor(
-            [cu_l[i] for i in dec_idx], dtype=torch.int64).to(
-                dev, non_blocking=True)
-        seq_dec = torch.tensor(
-            [seq_l[i] for i in dec_idx], dtype=m.seq_lens.dtype).to(
-                dev, non_blocking=True)
+        if n == len(seq_l) and cu_l[n] == n:
+            dec_rows = torch.arange(n, dtype=torch.int64, device=dev)
+            seq_dec = m.seq_lens
+            block_table = m.block_table
+        else:
+            idx_t = torch.tensor(dec_idx, dtype=torch.int64).to(dev, non_blocking=True)
+            dec_rows = torch.tensor(
+                [cu_l[i] for i in dec_idx], dtype=torch.int64).to(
+                    dev, non_blocking=True)
+            seq_dec = torch.tensor(
+                [seq_l[i] for i in dec_idx], dtype=m.seq_lens.dtype).to(
+                    dev, non_blocking=True)
+            block_table = torch.index_select(m.block_table, 0, idx_t)
         dec_meta = dataclasses.replace(
             m,
             num_actual_tokens=n,
@@ -138,7 +144,7 @@ def _build_split(m, cu_l, seq_l):
             query_start_loc=torch.arange(
                 0, n + 1, device=dev, dtype=m.query_start_loc.dtype),
             seq_lens=seq_dec,
-            block_table=torch.index_select(m.block_table, 0, idx_t),
+            block_table=block_table,
         )
     else:
         dec_rows = None
