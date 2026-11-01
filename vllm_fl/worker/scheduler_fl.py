@@ -136,6 +136,14 @@ class _MTPStructuredOutputManager:
         return bitmask_tensor.numpy()
 
 
+def _mixed_step_token_budget(running, default_budget, mixed_budget=4096):
+    has_prefill = any(req.num_computed_tokens < req.num_prompt_tokens for req in running)
+    has_decode = any(req.num_computed_tokens >= req.num_prompt_tokens for req in running)
+    if has_prefill and has_decode:
+        return min(default_budget, mixed_budget)
+    return default_budget
+
+
 class AsyncSchedulerFL(_AsyncScheduler):
     """vLLM async scheduler with plugin-owned MTP xGrammar batching."""
 
@@ -153,3 +161,13 @@ class AsyncSchedulerFL(_AsyncScheduler):
                 "(max_threads=8)."
             )
         super().__init__(*args, **kwargs)
+
+    def schedule(self, throttle_prefills: bool = False):
+        default_budget = self.max_num_scheduled_tokens
+        self.max_num_scheduled_tokens = _mixed_step_token_budget(
+            self.running, default_budget
+        )
+        try:
+            return super().schedule(throttle_prefills)
+        finally:
+            self.max_num_scheduled_tokens = default_budget
