@@ -249,9 +249,9 @@ class WorkerFL(WorkerBase):
             # Get whitelist and blacklist from environment variables
             whitelist, blacklist = get_flag_gems_whitelist_blacklist()
 
-            # Only rank 0 records the oplist to avoid file truncation and
-            # interleaved writes when tensor-parallel-size > 1.
-            should_record = (rank == 0)
+            # Oplist recording is opt-in: even with once=True, per-call debug
+            # records are constructed before the deduplication filter runs.
+            should_record = rank == 0 and "FLAGGEMS_ENABLE_OPLIST_PATH" in os.environ
 
             # Use whitelist if specified (takes precedence over blacklist)
             if whitelist:

@@ -367,7 +367,7 @@ Environment variables can override specific items from platform config. If not s
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `FLAGCX_PATH` | (none) | FlagCX library path (enables FlagCX communication backend) |
-| `FLAGGEMS_ENABLE_OPLIST_PATH` | `/tmp/flaggems_enable_oplist.txt` | FlagGems enabled ops list file |
+| `FLAGGEMS_ENABLE_OPLIST_PATH` | (none) | Opt-in FlagGems ops list recording; if set without a value, uses `/tmp/flaggems_enable_oplist.txt` |
 
 ### Examples
 
