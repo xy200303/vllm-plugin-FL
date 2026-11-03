@@ -40,9 +40,12 @@ def test_fused_gate_up_honors_disable_switch(monkeypatch):
 
 
 def test_apply_patches_minicpm_mlp(monkeypatch):
+    from vllm.model_executor.models.llama import LlamaMLP
     from vllm.model_executor.models.minicpm import MiniCPMMLP
 
     monkeypatch.setattr(mm_silu_mul, "_applied", False)
+    monkeypatch.setattr(LlamaMLP, "forward", lambda self, x: x)
     monkeypatch.setattr(MiniCPMMLP, "forward", lambda self, x: x)
     mm_silu_mul.apply()
+    assert LlamaMLP.forward is mm_silu_mul._forward
     assert MiniCPMMLP.forward is mm_silu_mul._forward

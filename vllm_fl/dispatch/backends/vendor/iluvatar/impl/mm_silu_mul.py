@@ -69,8 +69,10 @@ def apply():
     global _applied
     if _applied:
         return
+    from vllm.model_executor.models.llama import LlamaMLP
     from vllm.model_executor.models.minicpm import MiniCPMMLP
 
+    LlamaMLP.forward = _forward
     MiniCPMMLP.forward = _forward
     _applied = True
     logger.info("Iluvatar dual-accumulator MLP fusion enabled")
