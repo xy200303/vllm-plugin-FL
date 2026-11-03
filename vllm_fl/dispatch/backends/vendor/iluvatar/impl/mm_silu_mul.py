@@ -24,11 +24,10 @@ def _mm_silu_mul_fake(a, b):
 _DISABLED = os.getenv("VLLM_FL_DISABLE_MLP_FUSION", "0") == "1"
 _applied = False
 _warned = False
-_used = 0
 
 
 def _fused_gate_up(mlp, x):
-    global _warned, _used
+    global _warned
     if _DISABLED or x.ndim != 2:
         return None
     proj = mlp.gate_up_proj
@@ -44,11 +43,7 @@ def _fused_gate_up(mlp, x):
     if x.dtype not in (torch.bfloat16, torch.float16):
         return None
     try:
-        result = torch.ops.fl.mm_silu_mul(x, weight.t())
-        _used += 1
-        if _used == 1:
-            logger.info("MLP fusion first used with M=%d", x.shape[0])
-        return result
+        return torch.ops.fl.mm_silu_mul(x, weight.t())
     except Exception as exc:
         if not _warned:
             logger.warning("MLP fusion failed; using stock gate/up path: %s", exc)
