@@ -27,6 +27,7 @@ VLLM_FL_DISABLE_ILUVATAR_VENDOR_FA=1: A/B switch back to stock.
 """
 
 import dataclasses
+import functools
 import os
 import time as _time
 
@@ -109,6 +110,11 @@ def _pool(name, rows, hkv, d, dtype, dev):
     return buf
 
 
+@functools.lru_cache(maxsize=8)
+def _decode_index(dec_idx, dev):
+    return torch.tensor(dec_idx, dtype=torch.int64, device=dev)
+
+
 def _build_split(m, cu_l, seq_l):
     """Compute the decode/prefill request split from CPU lists, attach GPU
     tensors for the decode subset.  Runs once per step in the builder.
@@ -124,13 +130,9 @@ def _build_split(m, cu_l, seq_l):
     dev = m.query_start_loc.device
     if dec_idx:
         n = len(dec_idx)
-        idx_t = torch.tensor(dec_idx, dtype=torch.int64).to(dev, non_blocking=True)
-        dec_rows = torch.tensor(
-            [cu_l[i] for i in dec_idx], dtype=torch.int64).to(
-                dev, non_blocking=True)
-        seq_dec = torch.tensor(
-            [seq_l[i] for i in dec_idx], dtype=m.seq_lens.dtype).to(
-                dev, non_blocking=True)
+        idx_t = _decode_index(tuple(dec_idx), dev)
+        dec_rows = torch.index_select(m.query_start_loc, 0, idx_t)
+        seq_dec = torch.index_select(m.seq_lens, 0, idx_t)
         dec_meta = dataclasses.replace(
             m,
             num_actual_tokens=n,
