@@ -37,3 +37,12 @@ def test_fused_gate_up_honors_disable_switch(monkeypatch):
     mlp = types.SimpleNamespace(gate_up_proj=proj)
     x = torch.empty(64, 2048, dtype=torch.bfloat16)
     assert mm_silu_mul._fused_gate_up(mlp, x) is None
+
+
+def test_apply_patches_minicpm_mlp(monkeypatch):
+    from vllm.model_executor.models.minicpm import MiniCPMMLP
+
+    monkeypatch.setattr(mm_silu_mul, "_applied", False)
+    monkeypatch.setattr(MiniCPMMLP, "forward", lambda self, x: x)
+    mm_silu_mul.apply()
+    assert MiniCPMMLP.forward is mm_silu_mul._forward

@@ -24,10 +24,11 @@ def _mm_silu_mul_fake(a, b):
 _DISABLED = os.getenv("VLLM_FL_DISABLE_MLP_FUSION", "0") == "1"
 _applied = False
 _warned = False
+_used = 0
 
 
 def _fused_gate_up(mlp, x):
-    global _warned
+    global _warned, _used
     if _DISABLED or x.ndim != 2:
         return None
     proj = mlp.gate_up_proj
@@ -43,7 +44,11 @@ def _fused_gate_up(mlp, x):
     if x.dtype not in (torch.bfloat16, torch.float16):
         return None
     try:
-        return torch.ops.fl.mm_silu_mul(x, weight.t())
+        result = torch.ops.fl.mm_silu_mul(x, weight.t())
+        _used += 1
+        if _used == 1:
+            logger.info("MLP fusion first used with M=%d", x.shape[0])
+        return result
     except Exception as exc:
         if not _warned:
             logger.warning("MLP fusion failed; using stock gate/up path: %s", exc)
@@ -64,8 +69,8 @@ def apply():
     global _applied
     if _applied:
         return
-    from vllm.model_executor.models.llama import LlamaMLP
+    from vllm.model_executor.models.minicpm import MiniCPMMLP
 
-    LlamaMLP.forward = _forward
+    MiniCPMMLP.forward = _forward
     _applied = True
     logger.info("Iluvatar dual-accumulator MLP fusion enabled")
