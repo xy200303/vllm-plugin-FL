@@ -238,6 +238,15 @@ try:
 except Exception as _e:
     logger.warning("decode_attn_fast patch failed: %s", _e)
 
+# fl opt-A48: dual-accumulator gate/up GEMM and SiLU multiplication.
+try:
+    from vllm_fl.dispatch.backends.vendor.iluvatar.impl.mm_silu_mul import (
+        apply as _apply_mm_silu_mul,
+    )
+    _apply_mm_silu_mul()
+except Exception as _e:
+    logger.warning("mm_silu_mul patch failed: %s", _e)
+
 # fl opt-A5: fused sampler tail (port of the MetaX opt7 patch).
 # Routes plain-sampling batches to FlagGems fused kernels:
 # bf16-direct Gumbel-Max + histogram-zoom top-p (no full-vocab sort).
