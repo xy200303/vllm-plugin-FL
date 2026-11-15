@@ -32,14 +32,17 @@ logger = init_logger(__name__)
 
 _FL_NN_MAX_N = 16384  # layer GEMMs above this N keep their existing path
 _FL_NN_MIN_N = 512
-_FL_FREE_NT = os.getenv("VLLM_FL_FREE_NT_WEIGHTS", "0") == "1"
-# 192 = dual-layout (default): skinny M keeps F.linear on the nt copy,
-# large M uses the nn-repacked copy.  0 = single nn layout for all M
-# (requires FREE_NT_WEIGHTS=1): frees the nt storage, which grows the KV
-# pool by ~8%.  2026-11-16 A/B looked +0.3% on both cases, but a second
-# official run with the single layout as default was neutral (4k +0.01%,
-# 16k +0.02%), so the dual layout stays.
-_FL_NN_MIN_M = int(os.getenv("VLLM_FL_NN_MIN_M", "192"))
+# Single nn layout (default): each repacked linear keeps only the [K, N]
+# copy, so every M -- decode included -- goes through the mcBLAS nn GEMM.
+# Releasing the nt storage returns ~4 GB to the KV pool: 1,111,744 ->
+# 1,203,904 tokens (+8.3%), i.e. max concurrency at 131,072 tokens goes
+# 8.48x -> 9.19x.  The two official cases are unchanged within noise
+# (4k 12451.84 vs 12450.37, 16k 11097.29 vs 11095.14), and at 64-way
+# concurrency the pool is not the limiter -- the win is headroom for
+# long-context or higher-concurrency serving.
+# The dual layout stays available: NN_MIN_M=192 + FREE_NT_WEIGHTS=0.
+_FL_FREE_NT = os.getenv("VLLM_FL_FREE_NT_WEIGHTS", "1") == "1"
+_FL_NN_MIN_M = int(os.getenv("VLLM_FL_NN_MIN_M", "0"))
 # VLLM_FL_DISABLE_LMHEAD_NN=1: lm_head keeps the stock vendor nt path (A/B switch)
 _FL_DISABLE_LMHEAD_NN = os.getenv("VLLM_FL_DISABLE_LMHEAD_NN", "0") == "1"
 
