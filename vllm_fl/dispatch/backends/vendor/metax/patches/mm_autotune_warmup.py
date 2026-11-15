@@ -1,13 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
-# 2026 - MiniCPM-FlagServe: MetaX GEMM autotune warmup at model load.
+# 2026 - MiniCPM-FlagServe: optional MetaX GEMM autotune warmup at model load.
 
-# FlagGems' LibTuner benchmarks every pruned config the first time an
-# (M, N, K) autotune bucket is seen.  On a cold cache that cost lands inside
-# benchmark-critical execute_model calls (observed: single 23.8 s stalls and
-# degraded first benchmark rounds).  This patch replays the exact GEMM call
-# paths once at load time so all runtime buckets are tuned before the server
-# starts accepting traffic.  Startup takes the one-time tuning cost instead;
-# scored request path stays tuning-free.  Disable with VLLM_FL_MM_WARMUP=0.
+# Opt-in via VLLM_FL_MM_WARMUP=1.  FlagGems' LibTuner benchmarks every pruned
+# config the first time an (M, N, K) bucket is seen, so a cold cache can stall
+# a benchmark-critical execute_model call (observed: one 23.8 s stall before the
+# align128 bucketing was added).  Replaying the GEMM paths at load moves that
+# cost to startup.  The replayed grid is far wider than what serving touches,
+# though: on C500 the full grid costs 6-19 min of startup, and the delivered
+# routing sends large-M prefill to mcBLAS, so most warmed buckets are never
+# used.  With the official harness dropping the first round, the warmup changes
+# neither tokens/s nor TTFT; measured cold start without it is ~2 min.  Keep it
+# optional for stacks where the tuned GEMM path is on the critical path.
 
 import os
 import time
@@ -15,7 +18,7 @@ import time
 import torch
 from vllm_fl.worker.model_runner import ModelRunnerFL
 
-_FL_WARMUP = os.getenv("VLLM_FL_MM_WARMUP", "1") == "1"
+_FL_WARMUP = os.getenv("VLLM_FL_MM_WARMUP", "0") == "1"
 # Small-M buckets exercised through F.linear (nt / nt_db decode path).
 _FL_WARMUP_SMALL_M = (1, 2, 4, 8, 16, 32, 64, 128, 1024)
 # Prefill buckets: multiples of 128 up to max_num_batched_tokens + one bucket
