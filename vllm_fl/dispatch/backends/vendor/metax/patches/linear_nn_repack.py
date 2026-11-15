@@ -35,8 +35,10 @@ _FL_NN_MIN_N = 512
 _FL_FREE_NT = os.getenv("VLLM_FL_FREE_NT_WEIGHTS", "0") == "1"
 # 192 = dual-layout (default): skinny M keeps F.linear on the nt copy,
 # large M uses the nn-repacked copy.  0 = single nn layout for all M
-# (requires FREE_NT_WEIGHTS=1); measured within noise of dual, kept as an
-# option for memory-tight deployments.
+# (requires FREE_NT_WEIGHTS=1): frees the nt storage, which grows the KV
+# pool by ~8%.  2026-11-16 A/B looked +0.3% on both cases, but a second
+# official run with the single layout as default was neutral (4k +0.01%,
+# 16k +0.02%), so the dual layout stays.
 _FL_NN_MIN_M = int(os.getenv("VLLM_FL_NN_MIN_M", "192"))
 # VLLM_FL_DISABLE_LMHEAD_NN=1: lm_head keeps the stock vendor nt path (A/B switch)
 _FL_DISABLE_LMHEAD_NN = os.getenv("VLLM_FL_DISABLE_LMHEAD_NN", "0") == "1"
