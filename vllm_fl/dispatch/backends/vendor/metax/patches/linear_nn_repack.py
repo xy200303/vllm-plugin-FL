@@ -32,15 +32,12 @@ logger = init_logger(__name__)
 
 _FL_NN_MAX_N = 16384  # layer GEMMs above this N keep their existing path
 _FL_NN_MIN_N = 512
-# Single nn layout (default): each repacked linear keeps only the [K, N]
-# copy, so every M -- decode included -- goes through the mcBLAS nn GEMM.
-# 2026-11-16 A/B on C500 (official cases, rounds 2-4): 16k 11130.01 vs
-# 11095.14 and 4k 12485.28 vs 12450.37 for the dual layout, plus a
-# 1,204,064 vs 1,111,744 token KV pool from releasing the nt storage.
-# The dual-layout conclusion dates from the Triton nn_db era; mcBLAS at
-# skinny M changes it.  NN_MIN_M=192 + FREE_NT_WEIGHTS=0 restores dual.
-_FL_FREE_NT = os.getenv("VLLM_FL_FREE_NT_WEIGHTS", "1") == "1"
-_FL_NN_MIN_M = int(os.getenv("VLLM_FL_NN_MIN_M", "0"))
+_FL_FREE_NT = os.getenv("VLLM_FL_FREE_NT_WEIGHTS", "0") == "1"
+# 192 = dual-layout (default): skinny M keeps F.linear on the nt copy,
+# large M uses the nn-repacked copy.  0 = single nn layout for all M
+# (requires FREE_NT_WEIGHTS=1); measured within noise of dual, kept as an
+# option for memory-tight deployments.
+_FL_NN_MIN_M = int(os.getenv("VLLM_FL_NN_MIN_M", "192"))
 # VLLM_FL_DISABLE_LMHEAD_NN=1: lm_head keeps the stock vendor nt path (A/B switch)
 _FL_DISABLE_LMHEAD_NN = os.getenv("VLLM_FL_DISABLE_LMHEAD_NN", "0") == "1"
 
